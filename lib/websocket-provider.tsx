@@ -14,10 +14,7 @@ import {
 	useState,
 } from "react";
 
-const whopApi = WhopClientSdk();
-const WebsocketContext = createContext<WhopWebsocketClientBrowser>(
-	whopApi.websocketClient({}),
-);
+const WebsocketContext = createContext<WhopWebsocketClientBrowser | null>(null);
 const WebsocketStatusContext = createContext<WebsocketStatus>("disconnected");
 
 export function useWebsocket() {
@@ -39,14 +36,15 @@ export function WhopWebsocketProvider({
 	joinExperience?: string;
 	onAppMessage: (message: proto.common.AppMessage) => void;
 }>) {
-	const [websocket, setWebsocket] = useState<WhopWebsocketClientBrowser>(() =>
-		whopApi.websocketClient({}),
+	const [websocket, setWebsocket] = useState<WhopWebsocketClientBrowser | null>(
+		typeof window === "undefined" ? null : WhopClientSdk().websocketClient({}),
 	);
 
 	const [connectionStatus, setConnectionStatus] =
 		useState<WebsocketStatus>("disconnected");
 
 	useEffect(() => {
+		const whopApi = WhopClientSdk();
 		const websocket = whopApi.websocketClient({
 			joinCustom,
 			joinExperience,

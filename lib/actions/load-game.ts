@@ -1,7 +1,7 @@
 "use server";
 
-import type { InferSelectModel } from "drizzle-orm";
-import { aliasedTable, and, desc, eq, sql } from "drizzle-orm";
+import type { InferSelectModel, SQL } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { verifyUser } from "../authentication";
 import db from "../db";
 import { answersTable, gamesTable, votesTable } from "../db/schema";
@@ -17,12 +17,12 @@ export interface AnswerWithVotes {
 	answerId: string;
 	answer: string;
 	voteCount: string;
-	didSelect: boolean;
 }
 
 export interface GameWithVotes {
 	game: GameWithStats;
 	answers: AnswerWithVotes[];
+	userVoteAnswerId?: string | null;
 }
 
 // Load the game, and answers, load counts of everyone who has voted. Return MY current vote (if applicable)
@@ -31,64 +31,40 @@ export async function loadGame(
 	experienceId: string,
 ): Promise<GameWithVotes | null> {
 	const { userId } = await verifyUser(experienceId);
-
-	const games = await db
-		.select({
-			id: gamesTable.id,
-			createdAt: gamesTable.createdAt,
-			updatedAt: gamesTable.updatedAt,
-			question: gamesTable.question,
-			answerCost: gamesTable.answerCost,
-			experienceId: gamesTable.experienceId,
-			createdByUserId: gamesTable.createdByUserId,
-			completedAt: gamesTable.completedAt,
-			correctAnswerId: gamesTable.correctAnswerId,
-			totalPoolSum: sql<string | null>`sum(${votesTable.paidAmount})`,
-		})
-		.from(gamesTable)
-		.where(eq(gamesTable.experienceId, experienceId))
-		.orderBy(desc(gamesTable.createdAt))
-		.leftJoin(votesTable, eq(gamesTable.id, votesTable.gameId))
-		.groupBy(gamesTable.id)
-		.limit(1);
-
-	const game = games.at(0);
+	const game = await loadGameWithByCondition(
+		eq(gamesTable.experienceId, experienceId),
+	);
 
 	if (!game) {
 		return null;
 	}
 
-	const currentUserVotesTable = aliasedTable(votesTable, "current_user_votes");
+	const userVote = await loadUserVote(game.game.id, userId);
 
-	const answers = await db
-		.select({
-			answerId: answersTable.id,
-			answer: answersTable.answer,
-			voteCount: sql<string>`count(${votesTable.id})`,
-			didSelect: sql<boolean>`count(${currentUserVotesTable.id}) > 0`,
-		})
-		.from(answersTable)
-		.leftJoin(votesTable, eq(answersTable.id, votesTable.answerId))
-		.leftJoin(
-			currentUserVotesTable,
-			and(
-				eq(currentUserVotesTable.answerId, answersTable.id),
-				eq(currentUserVotesTable.userId, userId),
-			),
-		)
-		.where(eq(answersTable.gameId, game.id))
-		.groupBy(answersTable.id);
-
-	// Transform the data to include vote counts and user's vote
-	const gameWithVotes: GameWithVotes = {
-		game,
-		answers,
+	return {
+		...game,
+		userVoteAnswerId: userVote?.answerId ?? null,
 	};
-
-	return gameWithVotes;
 }
 
 export async function loadGameByIdWithoutAuth(gameId: string) {
+	return loadGameWithByCondition(eq(gamesTable.id, gameId));
+}
+
+export async function loadUserVote(gameId: string, userId: string) {
+	const [vote] = await db
+		.select()
+		.from(votesTable)
+		.where(and(eq(votesTable.gameId, gameId), eq(votesTable.userId, userId)));
+
+	if (!vote) {
+		return null;
+	}
+
+	return vote;
+}
+
+async function loadGameWithByCondition(condition: SQL) {
 	const games = await db
 		.select({
 			id: gamesTable.id,
@@ -103,7 +79,7 @@ export async function loadGameByIdWithoutAuth(gameId: string) {
 			totalPoolSum: sql<string | null>`sum(${votesTable.paidAmount})`,
 		})
 		.from(gamesTable)
-		.where(eq(gamesTable.id, gameId))
+		.where(condition)
 		.orderBy(desc(gamesTable.createdAt))
 		.leftJoin(votesTable, eq(gamesTable.id, votesTable.gameId))
 		.groupBy(gamesTable.id)
@@ -120,14 +96,12 @@ export async function loadGameByIdWithoutAuth(gameId: string) {
 			answerId: answersTable.id,
 			answer: answersTable.answer,
 			voteCount: sql<string>`count(${votesTable.id})`,
-			didSelect: sql<boolean>`false`,
 		})
 		.from(answersTable)
 		.leftJoin(votesTable, eq(answersTable.id, votesTable.answerId))
 		.where(eq(answersTable.gameId, game.id))
 		.groupBy(answersTable.id);
 
-	// Transform the data to include vote counts and user's vote
 	const gameWithVotes: GameWithVotes = {
 		game,
 		answers,

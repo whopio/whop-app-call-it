@@ -1,12 +1,15 @@
 "use client";
 
+import { endBidding } from "@/lib/actions/end-bidding";
 import type { AnswerWithVotes, GameWithVotes } from "@/lib/actions/load-game";
+import { revealAnswer } from "@/lib/actions/reveal-answer";
 import { submitVote } from "@/lib/actions/submit-vote";
 import { cn } from "@/lib/cn";
 import { WhopWebsocketProvider } from "@/lib/websocket-provider";
 import { useIframeSdk } from "@whop/react";
 import { Button, Card, Heading, Text } from "@whop/react/components";
 import { UsersIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export function GameView({
@@ -29,7 +32,10 @@ export function GameView({
 			onAppMessage={(message) => {
 				if (message.isTrusted) {
 					const newGame = JSON.parse(message.json) as GameWithVotes;
-					setGame(newGame);
+					setGame((oldGame) => ({
+						...oldGame,
+						...newGame, // newGame won't have the userVoteAnswerId, so we need to merge it in
+					}));
 				}
 			}}
 		>
@@ -65,7 +71,11 @@ export function GameView({
 					answers={game.answers}
 					totalVotes={totalVotes}
 					correctAnswerId={game.game.correctAnswerId}
+					completedAt={game.game.completedAt ?? null}
+					userVoteAnswerId={game.userVoteAnswerId ?? null}
 					isAdmin={isAdmin}
+					gameId={game.game.id}
+					experienceId={game.game.experienceId}
 				/>
 			</div>
 		</WhopWebsocketProvider>
@@ -76,20 +86,36 @@ function Answers({
 	answers,
 	totalVotes,
 	correctAnswerId,
+	completedAt,
+	userVoteAnswerId,
 	isAdmin,
+	gameId,
+	experienceId,
 }: {
 	answers: AnswerWithVotes[];
 	totalVotes: number;
 	correctAnswerId: string | null;
+	completedAt: string | null;
+	userVoteAnswerId: string | null;
 	isAdmin: boolean;
+	gameId: string;
+	experienceId: string;
 }) {
 	const iframeSdk = useIframeSdk();
-	const userSelected = answers.find((a) => a.didSelect);
 	const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(
-		userSelected?.answerId ?? null,
+		userVoteAnswerId,
 	);
-	const canSelect = !correctAnswerId && !userSelected;
+
+	const { text, action, canSelect, color } = ctaButtonText({
+		isAdmin,
+		completedAt,
+		correctAnswerId,
+		userVoteAnswerId,
+		currentSelection: selectedAnswerId,
+	});
+
 	const [isLoading, setIsLoading] = useState(false);
+	const router = useRouter();
 
 	function handleSelect(answerId: string) {
 		if (!canSelect) return;
@@ -97,12 +123,25 @@ function Answers({
 	}
 
 	async function handleSubmit() {
-		if (!canSelect || !selectedAnswerId) return;
+		if (!action) return;
 		setIsLoading(true);
 		try {
-			const inAppPurchase = await submitVote(selectedAnswerId);
-			if (inAppPurchase) {
-				await iframeSdk.inAppPurchase(inAppPurchase);
+			if (action === "vote") {
+				if (!selectedAnswerId) return;
+				const inAppPurchase = await submitVote(selectedAnswerId);
+				if (inAppPurchase) {
+					await iframeSdk.inAppPurchase(inAppPurchase);
+				}
+			}
+			if (action === "reveal") {
+				if (!selectedAnswerId) return;
+				await revealAnswer(selectedAnswerId);
+			}
+			if (action === "end") {
+				await endBidding(gameId);
+			}
+			if (action === "create") {
+				router.push(`/experiences/${experienceId}/create`);
 			}
 		} catch (error) {
 			console.error(error);
@@ -123,6 +162,7 @@ function Answers({
 						isSelected={selectedAnswerId === answer.answerId}
 						isCorrect={correctAnswerId === answer.answerId}
 						onSelect={() => handleSelect(answer.answerId)}
+						canSelect={!!canSelect}
 					/>
 				))}
 			</div>
@@ -131,16 +171,64 @@ function Answers({
 			<Button
 				size="4"
 				className="w-full"
-				color={isAdmin ? "red" : undefined}
+				color={color}
 				variant="classic"
 				loading={isLoading}
-				disabled={isLoading || !canSelect || !selectedAnswerId}
+				disabled={isLoading || !action}
 				onClick={handleSubmit}
 			>
-				{isAdmin ? "End Game" : "Submit Answer"}
+				{text}
 			</Button>
 		</>
 	);
+}
+
+function ctaButtonText({
+	isAdmin,
+	completedAt,
+	correctAnswerId,
+	userVoteAnswerId,
+	currentSelection,
+}: {
+	isAdmin: boolean;
+	completedAt: string | null;
+	correctAnswerId: string | null;
+	userVoteAnswerId: string | null;
+	currentSelection: string | null;
+}): {
+	text: string;
+	action?: "create" | "vote" | "end" | "reveal";
+	canSelect?: boolean;
+	color?: "red" | "green";
+} {
+	if (isAdmin) {
+		if (correctAnswerId) return { text: "Start a new game", action: "create" };
+		if (completedAt)
+			return {
+				text: `${currentSelection ? "Submit" : "Select"} Correct Answer`,
+				action: currentSelection ? "reveal" : undefined,
+				canSelect: true,
+			};
+		return {
+			text: "End bidding",
+			action: "end",
+			color: "red",
+		};
+	}
+
+	if (correctAnswerId) {
+		if (correctAnswerId === userVoteAnswerId) return { text: "You won!" };
+		if (userVoteAnswerId && correctAnswerId !== userVoteAnswerId)
+			return { text: "Better luck next time" };
+		return { text: "Waiting for the creator to start" };
+	}
+	if (completedAt) return { text: "Waiting for the big reveal" };
+	if (userVoteAnswerId) return { text: "Will you get it right?" };
+	return {
+		text: "Submit Answer",
+		action: currentSelection ? "vote" : undefined,
+		canSelect: true,
+	};
 }
 
 function AnswerOption({
@@ -150,22 +238,25 @@ function AnswerOption({
 	isSelected,
 	isCorrect,
 	onSelect,
+	canSelect,
 }: {
 	answer: AnswerWithVotes;
 	totalVotes: number;
 	index: number;
 	isSelected: boolean;
 	isCorrect: boolean;
+	canSelect: boolean;
 	onSelect: () => void;
 }) {
 	return (
 		<button
 			type="button"
 			className={cn(
-				"flex p-3 gap-2 flex-col w-full border border-stroke rounded-lg bg-gray-a3 hover:bg-gray-a4 transition-colors",
+				"flex p-3 gap-2 flex-col w-full border border-stroke rounded-lg bg-gray-a3 transition-colors",
 				{
-					"border-blue-9 hover:bg-blue-a3 bg-blue-a3": isSelected,
-					"border-green-9 hover:bg-green-a3 bg-green-a3": isCorrect,
+					"hover:bg-gray-a4": canSelect && !isSelected && !isCorrect,
+					"border-blue-9 bg-blue-a3": isSelected,
+					"border-green-9 bg-green-a3": isCorrect,
 				},
 			)}
 			onClick={onSelect}
