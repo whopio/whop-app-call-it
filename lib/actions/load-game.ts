@@ -119,4 +119,6 @@ export async function sendUpdate(gameId: string) {
 		target: { experience: game.game.experienceId },
 		message: JSON.stringify(game),
 	});
+
+	return game;
 }

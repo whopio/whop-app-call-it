@@ -1,6 +1,7 @@
 import { sendUpdate } from "@/lib/actions/load-game";
 import db from "@/lib/db";
 import { votesTable } from "@/lib/db/schema";
+import { whopApi } from "@/lib/whop-api";
 import { waitUntil } from "@vercel/functions";
 import { makeWebhookValidator } from "@whop/api";
 import type { NextRequest } from "next/server";
@@ -93,5 +94,18 @@ async function handleWebhook(
 		receiptId,
 	});
 
-	waitUntil(sendUpdate(gameId));
+	waitUntil(afterVote(gameId));
+}
+async function afterVote(gameId: string) {
+	const game = await sendUpdate(gameId);
+	if (!game) return;
+
+	await whopApi.sendPushNotification({
+		input: {
+			title: "New player has submitted their vote!",
+			subtitle: game.game.question,
+			content: `The pot is now at $${game.game.totalPoolSum}`,
+			experienceId: game.game.experienceId,
+		},
+	});
 }
