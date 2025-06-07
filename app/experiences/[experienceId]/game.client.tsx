@@ -26,6 +26,13 @@ export function GameView({
 		0,
 	);
 
+	function setAnswer(answerId: string) {
+		setGame((oldGame) => ({
+			...oldGame,
+			userVoteAnswerId: answerId,
+		}));
+	}
+
 	return (
 		<WhopWebsocketProvider
 			joinExperience={serverGame.game.experienceId}
@@ -76,6 +83,7 @@ export function GameView({
 					isAdmin={isAdmin}
 					gameId={game.game.id}
 					experienceId={game.game.experienceId}
+					setAnswer={setAnswer}
 				/>
 			</div>
 		</WhopWebsocketProvider>
@@ -91,6 +99,7 @@ function Answers({
 	isAdmin,
 	gameId,
 	experienceId,
+	setAnswer,
 }: {
 	answers: AnswerWithVotes[];
 	totalVotes: number;
@@ -100,6 +109,7 @@ function Answers({
 	isAdmin: boolean;
 	gameId: string;
 	experienceId: string;
+	setAnswer: (answerId: string) => void;
 }) {
 	const iframeSdk = useIframeSdk();
 	const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(
@@ -132,6 +142,7 @@ function Answers({
 				if (inAppPurchase) {
 					await iframeSdk.inAppPurchase(inAppPurchase);
 				}
+				setAnswer(selectedAnswerId);
 			}
 			if (action === "reveal") {
 				if (!selectedAnswerId) return;
