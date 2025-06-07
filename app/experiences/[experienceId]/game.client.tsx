@@ -9,7 +9,13 @@ import { Button, Card, Heading, Text } from "@whop/react/components";
 import { UsersIcon } from "lucide-react";
 import { useState } from "react";
 
-export function GameView({ serverGame }: { serverGame: GameWithVotes }) {
+export function GameView({
+	serverGame,
+	isAdmin,
+}: {
+	serverGame: GameWithVotes;
+	isAdmin: boolean;
+}) {
 	const [game, setGame] = useState(serverGame);
 
 	const totalVotes = game.answers.reduce(
@@ -59,6 +65,7 @@ export function GameView({ serverGame }: { serverGame: GameWithVotes }) {
 					answers={game.answers}
 					totalVotes={totalVotes}
 					correctAnswerId={game.game.correctAnswerId}
+					isAdmin={isAdmin}
 				/>
 			</div>
 		</WhopWebsocketProvider>
@@ -69,10 +76,12 @@ function Answers({
 	answers,
 	totalVotes,
 	correctAnswerId,
+	isAdmin,
 }: {
 	answers: AnswerWithVotes[];
 	totalVotes: number;
 	correctAnswerId: string | null;
+	isAdmin: boolean;
 }) {
 	const iframeSdk = useIframeSdk();
 	const userSelected = answers.find((a) => a.didSelect);
@@ -124,10 +133,10 @@ function Answers({
 				className="w-full"
 				variant="classic"
 				loading={isLoading}
-				disabled={isLoading}
+				disabled={isLoading || !canSelect || !selectedAnswerId}
 				onClick={handleSubmit}
 			>
-				Submit Answer
+				{isAdmin ? "End Game" : "Submit Answer"}
 			</Button>
 		</>
 	);
