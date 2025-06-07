@@ -106,14 +106,17 @@ async function handlePayout(
 		Number(totalPoolSum.totalPoolSum) *
 		((100 - (ledgerAccount.transferFee ?? 0)) / 100);
 
-	const payout = totalPool * 0.8;
-	const companyPayout = payout * 0.1;
 	const winners = await db
 		.select()
 		.from(votesTable)
 		.where(eq(votesTable.answerId, answerId));
 
-	const payoutPerWinner = payout / winners.length;
+	const companyPayoutPercent = winners.length > 0 ? 0.1 : 0.8;
+
+	const usersPayout = totalPool * 0.8;
+	const companyPayout = totalPool * companyPayoutPercent;
+
+	const payoutPerWinner = usersPayout / winners.length;
 
 	await Promise.all(
 		winners.map((winner) => {
@@ -145,6 +148,7 @@ export async function payoutWinningCompany(
 ) {
 	const { experience } = await whopApi.getExperience({ experienceId });
 	const companyId = experience.company.id;
+	if (amount < 1) return;
 	await whopApi.payUser({
 		input: {
 			amount,
@@ -165,6 +169,7 @@ async function payoutWinner(
 	fee: number | null | undefined,
 	gameId: string,
 ) {
+	if (amount < 1) return;
 	await whopApi.payUser({
 		input: {
 			amount,
