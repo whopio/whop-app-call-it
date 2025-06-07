@@ -131,6 +131,7 @@ function Answers({
 			<Button
 				size="4"
 				className="w-full"
+				color={isAdmin ? "red" : undefined}
 				variant="classic"
 				loading={isLoading}
 				disabled={isLoading || !canSelect || !selectedAnswerId}
