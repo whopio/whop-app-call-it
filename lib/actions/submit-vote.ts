@@ -28,6 +28,17 @@ export async function submitVote(answerId: string) {
 		return endGame(game.games.id, answerId);
 	}
 
+	const existingVotes = await db
+		.select()
+		.from(votesTable)
+		.where(
+			and(eq(votesTable.userId, userId), eq(votesTable.gameId, game.games.id)),
+		);
+
+	if (existingVotes.length > 0) {
+		return;
+	}
+
 	const { chargeUser } = await whopApi.chargeUser({
 		input: {
 			amount: game.games.answerCost,
