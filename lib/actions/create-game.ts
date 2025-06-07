@@ -1,9 +1,12 @@
 "use server";
 
 import { and, eq, isNull } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { verifyUser } from "../authentication";
 import db from "../db";
 import { answersTable, gamesTable } from "../db/schema";
+import { whopApi } from "../whop-api";
+import { sendUpdate } from "./load-game";
 
 export async function createGame(formData: FormData) {
 	const experienceId = assertString(formData.get("experienceId"));
@@ -24,7 +27,7 @@ export async function createGame(formData: FormData) {
 		throw new Error("A running game is already in progress");
 	}
 
-	await db.transaction(async (tx) => {
+	const newGame = await db.transaction(async (tx) => {
 		const [game] = await tx
 			.insert(gamesTable)
 			.values({
@@ -42,7 +45,23 @@ export async function createGame(formData: FormData) {
 				answer,
 			})),
 		);
+
+		return game;
 	});
+
+	await sendUpdate(newGame.id);
+
+	await whopApi.sendPushNotification({
+		input: {
+			title: "New 'Call it' game started",
+			content: question,
+			experienceId: newGame.experienceId,
+			isMention: true,
+			senderUserId: userId,
+		},
+	});
+
+	redirect(`/experiences/${experienceId}`);
 }
 
 function getAnswers(formData: FormData) {
