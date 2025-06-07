@@ -1,3 +1,6 @@
+import { sendUpdate } from "@/lib/actions/load-game";
+import db from "@/lib/db";
+import { votesTable } from "@/lib/db/schema";
 import { waitUntil } from "@vercel/functions";
 import { makeWebhookValidator } from "@whop/api";
 import type { NextRequest } from "next/server";
@@ -12,24 +15,26 @@ export async function POST(request: NextRequest): Promise<Response> {
 
 	// Handle the webhook event
 	if (webhookData.action === "payment.succeeded") {
-		const { id, final_amount, amount_after_fees, currency, user_id } =
-			webhookData.data;
-
-		// final_amount is the amount the user paid
-		// amount_after_fees is the amount that is received by you, after card fees and processing fees are taken out
+		const {
+			id: receiptId,
+			final_amount,
+			amount_after_fees,
+			currency,
+			user_id,
+			metadata,
+		} = webhookData.data;
 
 		console.log(
-			`Payment ${id} succeeded for ${user_id} with amount ${final_amount} ${currency}`,
+			`Payment ${receiptId} succeeded for ${user_id} with amount ${final_amount} ${currency}`,
 		);
 
-		// if you need to do work that takes a long time, use waitUntil to run it in the background
-		waitUntil(
-			potentiallyLongRunningHandler(
-				user_id,
-				final_amount,
-				currency,
-				amount_after_fees,
-			),
+		handleWebhook(
+			receiptId,
+			user_id,
+			final_amount,
+			currency,
+			amount_after_fees,
+			metadata,
 		);
 	}
 
@@ -37,12 +42,58 @@ export async function POST(request: NextRequest): Promise<Response> {
 	return new Response("OK", { status: 200 });
 }
 
-async function potentiallyLongRunningHandler(
-	_user_id: string | null | undefined,
-	_amount: number,
-	_currency: string,
-	_amount_after_fees: number | null | undefined,
+async function handleWebhook(
+	receiptId: string,
+	user_id: string | null | undefined,
+	amount: number,
+	currency: string,
+	amount_after_fees: number | null | undefined,
+	metadata?: Record<string, unknown> | null,
 ) {
-	// This is a placeholder for a potentially long running operation
-	// In a real scenario, you might need to fetch user data, update a database, etc.
+	const answerId = metadata?.answerId;
+	const gameId = metadata?.gameId;
+
+	if (typeof answerId !== "string") {
+		console.error(`No answerId found in metadata for receipt ${receiptId}`);
+		return;
+	}
+
+	if (typeof gameId !== "string") {
+		console.error(`No gameId found in metadata for receipt ${receiptId}`);
+		return;
+	}
+
+	if (!user_id) {
+		console.error(`No user_id found in webhook for receipt ${receiptId}`);
+		return;
+	}
+
+	if (amount_after_fees === null || amount_after_fees === undefined) {
+		console.error(
+			`No amount_after_fees found in webhook for receipt ${receiptId}`,
+		);
+		return;
+	}
+
+	if (currency !== "usd") {
+		console.error(
+			`Currency ${currency} not supported for receipt ${receiptId}`,
+		);
+		return;
+	}
+
+	const receivedAmount = Number(amount_after_fees);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(votesTable).values({
+			answerId,
+			gameId,
+			paidAmount: amount.toFixed(2),
+			receivedAmount: receivedAmount.toFixed(2),
+			userId: user_id,
+			receiptId,
+		});
+	});
+
+	waitUntil(sendUpdate(gameId));
 }
