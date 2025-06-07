@@ -28,7 +28,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 			`Payment ${receiptId} succeeded for ${user_id} with amount ${final_amount} ${currency}`,
 		);
 
-		handleWebhook(
+		await handleWebhook(
 			receiptId,
 			user_id,
 			final_amount,
@@ -84,15 +84,13 @@ async function handleWebhook(
 
 	const receivedAmount = Number(amount_after_fees);
 
-	await db.transaction(async (tx) => {
-		await tx.insert(votesTable).values({
-			answerId,
-			gameId,
-			paidAmount: amount.toFixed(2),
-			receivedAmount: receivedAmount.toFixed(2),
-			userId: user_id,
-			receiptId,
-		});
+	await db.insert(votesTable).values({
+		answerId,
+		gameId,
+		paidAmount: amount.toFixed(2),
+		receivedAmount: receivedAmount.toFixed(2),
+		userId: user_id,
+		receiptId,
 	});
 
 	waitUntil(sendUpdate(gameId));
