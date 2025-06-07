@@ -23,7 +23,7 @@ export default async function ExperiencePage({
 			)}
 
 			{game ? (
-				<GameView serverGame={game} />
+				<GameView serverGame={game} isAdmin={accessLevel === "admin"} />
 			) : accessLevel === "admin" ? (
 				<CreatorEmptyState />
 			) : (
