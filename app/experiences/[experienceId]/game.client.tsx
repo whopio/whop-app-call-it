@@ -5,8 +5,7 @@ import type { AnswerWithVotes, GameWithVotes } from "@/lib/actions/load-game";
 import { revealAnswer } from "@/lib/actions/reveal-answer";
 import { submitVote } from "@/lib/actions/submit-vote";
 import { cn } from "@/lib/cn";
-import { WhopWebsocketProvider } from "@/lib/websocket-provider";
-import { useIframeSdk } from "@whop/react";
+import { useIframeSdk, useOnWebsocketMessage } from "@whop/react";
 import { Button, Card, Heading, Text } from "@whop/react/components";
 import { UsersIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -33,60 +32,57 @@ export function GameView({
 		}));
 	}
 
+	useOnWebsocketMessage((message) => {
+		if (message.isTrusted) {
+			const newGame = JSON.parse(message.json) as GameWithVotes;
+			setGame((oldGame) => ({
+				...oldGame,
+				...newGame, // newGame won't have the userVoteAnswerId, so we need to merge it in
+			}));
+		}
+	});
+
 	return (
-		<WhopWebsocketProvider
-			joinExperience={serverGame.game.experienceId}
-			onAppMessage={(message) => {
-				if (message.isTrusted) {
-					const newGame = JSON.parse(message.json) as GameWithVotes;
-					setGame((oldGame) => ({
-						...oldGame,
-						...newGame, // newGame won't have the userVoteAnswerId, so we need to merge it in
-					}));
-				}
-			}}
-		>
-			<div className="space-y-6">
-				{/* Stats Boxes */}
-				<div className="flex gap-4">
-					<div className="flex-1 bg-green-a5 rounded-lg px-4 py-2">
-						<Text size="1" className="text-green-a9">
-							Total Pool
-						</Text>
-						<Heading size="7" className="text-green-a10" weight="bold">
-							${game.game.totalPoolSum || "0"}
-						</Heading>
-					</div>
-					<div className="flex-1 bg-blue-a3 rounded-lg px-4 py-2">
-						<Text size="1" className="text-blue-a10">
-							Players
-						</Text>
-						<Heading size="7" className="text-blue-a11" weight="bold">
-							<UsersIcon className="inline-block mr-1" />
-							{totalVotes}
-						</Heading>
-					</div>
+		<div className="space-y-6">
+			{/* Stats Boxes */}
+			<div className="flex gap-4">
+				<div className="flex-1 bg-green-a5 rounded-lg px-4 py-2">
+					<Text size="1" className="text-green-a9">
+						Total Pool
+					</Text>
+					<Heading size="7" className="text-green-a10" weight="bold">
+						${game.game.totalPoolSum || "0"}
+					</Heading>
 				</div>
-
-				{/* Question Card */}
-				<Card>
-					<span className="text-2 text-gray-a9 mb-1">Can you call it?</span>
-					<Heading size="3">{game.game.question}</Heading>
-				</Card>
-
-				<Answers
-					answers={game.answers}
-					totalVotes={totalVotes}
-					correctAnswerId={game.game.correctAnswerId}
-					completedAt={game.game.completedAt ?? null}
-					userVoteAnswerId={game.userVoteAnswerId ?? null}
-					isAdmin={isAdmin}
-					gameId={game.game.id}
-					experienceId={game.game.experienceId}
-					setAnswer={setAnswer}
-				/>
+				<div className="flex-1 bg-blue-a3 rounded-lg px-4 py-2">
+					<Text size="1" className="text-blue-a10">
+						Players
+					</Text>
+					<Heading size="7" className="text-blue-a11" weight="bold">
+						<UsersIcon className="inline-block mr-1" />
+						{totalVotes}
+					</Heading>
+				</div>
 			</div>
-		</WhopWebsocketProvider>
+
+			{/* Question Card */}
+			<Card>
+				<span className="text-2 text-gray-a9 mb-1">Can you call it?</span>
+				<Heading size="3">{game.game.question}</Heading>
+			</Card>
+
+			<Answers
+				answers={game.answers}
+				totalVotes={totalVotes}
+				correctAnswerId={game.game.correctAnswerId}
+				completedAt={game.game.completedAt ?? null}
+				userVoteAnswerId={game.userVoteAnswerId ?? null}
+				isAdmin={isAdmin}
+				gameId={game.game.id}
+				experienceId={game.game.experienceId}
+				setAnswer={setAnswer}
+			/>
+		</div>
 	);
 }
 

@@ -65,7 +65,6 @@ export async function createGame(formData: FormData) {
 }
 
 function getAnswers(formData: FormData) {
-	console.log("getAnswers", [...formData.entries()]);
 	let index = 0;
 	const answers: string[] = [];
 	while (index < 20) {

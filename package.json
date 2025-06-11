@@ -12,8 +12,8 @@
 	"dependencies": {
 		"@paralleldrive/cuid2": "^2.2.2",
 		"@vercel/functions": "^2.0.3",
-		"@whop/api": "^0.0.24",
-		"@whop/react": "0.2.0",
+		"@whop/api": "^0.0.26",
+		"@whop/react": "0.2.2",
 		"clsx": "^2.1.1",
 		"dotenv": "^16.5.0",
 		"drizzle-orm": "^0.44.2",

@@ -13,17 +13,15 @@ export default async function ExperiencePage({
 
 	const game = await loadGame(experienceId);
 
-	return (
-		<div className="flex flex-col gap-4 max-w-3xl mx-auto p-4">
-			{game ? (
-				<GameView serverGame={game} isAdmin={accessLevel === "admin"} />
-			) : accessLevel === "admin" ? (
-				<CreatorEmptyState experienceId={experienceId} />
-			) : (
-				<CustomerEmptyState />
-			)}
-		</div>
-	);
+	if (game) {
+		return <GameView serverGame={game} isAdmin={accessLevel === "admin"} />;
+	}
+
+	if (accessLevel === "admin") {
+		return <CreatorEmptyState experienceId={experienceId} />;
+	}
+
+	return <CustomerEmptyState />;
 }
 
 function CreatorEmptyState({ experienceId }: { experienceId: string }) {

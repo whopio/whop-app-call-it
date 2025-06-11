@@ -27,7 +27,7 @@ export async function revealAnswer(answerId: string) {
 		throw new Error("Game not completed");
 	}
 
-	const { accessLevel } = await verifyUser(game.games.experienceId, "admin");
+	await verifyUser(game.games.experienceId, "admin");
 
 	const [answer] = await db
 		.select()
