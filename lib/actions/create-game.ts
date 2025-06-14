@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { verifyUser } from "../authentication";
 import db from "../db";
 import { answersTable, gamesTable } from "../db/schema";
-import { whopApi } from "../whop-api";
+import { whopSdk } from "../whop-sdk";
 import { sendUpdate } from "./load-game";
 
 export async function createGame(formData: FormData) {
@@ -51,14 +51,12 @@ export async function createGame(formData: FormData) {
 
 	await sendUpdate(newGame.id);
 
-	await whopApi.sendPushNotification({
-		input: {
-			title: "New 'Call it' game started",
-			content: question,
-			experienceId: newGame.experienceId,
-			isMention: true,
-			senderUserId: userId,
-		},
+	await whopSdk.notifications.sendPushNotification({
+		title: "New 'Call it' game started",
+		content: question,
+		experienceId: newGame.experienceId,
+		isMention: true,
+		senderUserId: userId,
 	});
 
 	redirect(`/experiences/${experienceId}`);

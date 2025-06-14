@@ -5,7 +5,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { verifyUser } from "../authentication";
 import db from "../db";
 import { answersTable, gamesTable, votesTable } from "../db/schema";
-import { whopApi } from "../whop-api";
+import { whopSdk } from "../whop-sdk";
 
 type Game = InferSelectModel<typeof gamesTable>;
 
@@ -115,7 +115,7 @@ export async function sendUpdate(gameId: string) {
 
 	if (!game) return;
 
-	await whopApi.sendWebsocketMessage({
+	await whopSdk.websockets.sendMessage({
 		target: { experience: game.game.experienceId },
 		message: JSON.stringify(game),
 	});

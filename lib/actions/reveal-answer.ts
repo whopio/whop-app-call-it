@@ -4,7 +4,7 @@ import { and, eq, isNull, sum } from "drizzle-orm";
 import { verifyUser } from "../authentication";
 import db from "../db";
 import { answersTable, gamesTable, votesTable } from "../db/schema";
-import { whopApi } from "../whop-api";
+import { whopSdk } from "../whop-sdk";
 import { sendUpdate } from "./load-game";
 
 export async function revealAnswer(answerId: string) {
@@ -78,7 +78,7 @@ async function handlePayout(
 		return;
 	}
 
-	const { company } = await whopApi.getCompanyLedgerAccount({
+	const company = await whopSdk.companies.getCompanyLedgerAccount({
 		companyId: process.env.WHOP_COMPANY_ID ?? "biz_XXXX",
 	});
 	const ledgerAccount = company?.ledgerAccount;
@@ -131,19 +131,17 @@ export async function payoutWinningCompany(
 	fee: number | null | undefined,
 	gameId: string,
 ) {
-	const { experience } = await whopApi.getExperience({ experienceId });
+	const experience = await whopSdk.experiences.getExperience({ experienceId });
 	const companyId = experience.company.id;
 	if (amount < 1) return;
-	await whopApi.payUser({
-		input: {
-			amount,
-			currency: "usd",
-			destinationId: companyId,
-			idempotenceKey: `${companyId}-${gameId}`,
-			ledgerAccountId,
-			notes: "Payout for game",
-			transferFee: fee,
-		},
+	await whopSdk.payments.payUser({
+		amount,
+		currency: "usd",
+		destinationId: companyId,
+		idempotenceKey: `${companyId}-${gameId}`,
+		ledgerAccountId,
+		notes: "Payout for game",
+		transferFee: fee,
 	});
 }
 
@@ -155,15 +153,13 @@ async function payoutWinner(
 	gameId: string,
 ) {
 	if (amount < 1) return;
-	await whopApi.payUser({
-		input: {
-			amount,
-			currency: "usd",
-			destinationId: userId,
-			idempotenceKey: `${userId}-${gameId}`,
-			ledgerAccountId: fromLedgerAccountId,
-			notes: "Payout for game",
-			transferFee: fee,
-		},
+	await whopSdk.payments.payUser({
+		amount,
+		currency: "usd",
+		destinationId: userId,
+		idempotenceKey: `${userId}-${gameId}`,
+		ledgerAccountId: fromLedgerAccountId,
+		notes: "Payout for game",
+		transferFee: fee,
 	});
 }

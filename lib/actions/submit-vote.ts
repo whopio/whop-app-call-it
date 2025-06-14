@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { verifyUser } from "../authentication";
 import db from "../db";
 import { answersTable, gamesTable, votesTable } from "../db/schema";
-import { whopApi } from "../whop-api";
+import { whopSdk } from "../whop-sdk";
 
 export async function submitVote(answerId: string) {
 	const [game] = await db
@@ -39,13 +39,11 @@ export async function submitVote(answerId: string) {
 		return;
 	}
 
-	const { chargeUser } = await whopApi.chargeUser({
-		input: {
-			amount: game.games.answerCost,
-			currency: "usd",
-			userId,
-			metadata: { answerId, gameId: game.games.id },
-		},
+	const chargeUser = await whopSdk.payments.chargeUser({
+		amount: game.games.answerCost,
+		currency: "usd",
+		userId,
+		metadata: { answerId, gameId: game.games.id },
 	});
 
 	if (!chargeUser) {
