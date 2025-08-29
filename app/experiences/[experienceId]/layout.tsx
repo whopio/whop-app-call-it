@@ -1,4 +1,4 @@
-import { WhopWebsocketProvider } from "@whop/react";
+import { WhopWebsocketProvider } from "@whop/react/websockets";
 
 export default async function ExperienceLayout({
 	children,
